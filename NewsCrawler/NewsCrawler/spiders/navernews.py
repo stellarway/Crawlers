@@ -6,6 +6,7 @@ import pandas as pd
 from NewsCrawler.items import NewscrawlerItem
 from urllib import parse
 import requests
+import re
 
 class NavernewsSpider(scrapy.Spider):
     name = 'navernews'
@@ -28,9 +29,9 @@ class NavernewsSpider(scrapy.Spider):
                 href = tag.css('dd.txt_inline a::attr(href)').get()
                 yield response.follow(href, self.naver_news)
         
-        next_page = response.css('div.paging a.next::attr(href)').get()
-        if next_page is not None:
-            yield response.follow(next_page, callback = self.parse)
+        # next_page = response.css('div.paging a.next::attr(href)').get()
+        # if next_page is not None:
+        #     yield response.follow(next_page, callback = self.parse)
     
     def naver_news(self, response):
         item = NewscrawlerItem()
@@ -40,8 +41,10 @@ class NavernewsSpider(scrapy.Spider):
         date = response.css('div.article_info span.t11::text').get().split(' ')[0]
         press = response.css('div.press_logo a img::attr(title)').get()
         bodyList = response.css('div._article_body_contents *::text').getall()
-        body = ''.join(bodyList).replace('  ','').replace('\t','').replace('\n','').replace('// flash 오류를 우회하기 위한 함수 추가function _flash_removeCallback() {}','')
+        tempbody = ''.join(bodyList)
         
+        pattern = r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+.*)|  |\t|\n|\xa0'
+        body = re.sub(pattern, '', tempbody).replace('// flash 오류를 우회하기 위한 함수 추가function _flash_removeCallback() {}','')
         # sentimental infomation
         pick_binary = response.css('div.head_channel::attr(style)').get()
         pick = 0 if 'none' in pick_binary else 1
