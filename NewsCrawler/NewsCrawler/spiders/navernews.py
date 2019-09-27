@@ -4,19 +4,34 @@ from dateutil.relativedelta import relativedelta
 from datetime import date
 import pandas as pd
 from NewsCrawler.items import NewscrawlerItem
-
+from urllib import parse
+import requests
 
 class NavernewsSpider(scrapy.Spider):
     name = 'navernews'
-    start_urls = []
+    def start_requests(self):
+        urls = []
+        years = getattr(self, 'years', 0)
+        months = getattr(self, 'months', 0)
+        query = getattr(self, 'query', '')
+        
+        start = (date.today()-relativedelta(years = years, months = months, days =1)) #.strftime('%Y.%m.%d')
+        end = (date.today()-relativedelta(days = 1)) #.strftime('%Y.%m.%d')
 
-    start = (date.today()-relativedelta(years = 0, days =1)) #.strftime('%Y.%m.%d')
-    end = (date.today()-relativedelta(days = 1)) #.strftime('%Y.%m.%d')
-    query = '삼성전자'
-    for date in pd.date_range(start = start, end = end):
-        date = date.strftime('%Y%m%d')
-        url = 'https://search.naver.com/search.naver?where=news&query={0}&sort=0&pd=3&ds={1}&de={1}'.format(query, date)
-        start_urls.append(url)
+        for day in pd.date_range(start = start, end = end):
+            day = day.strftime('%Y%m%d')
+            url = 'https://search.naver.com/search.naver?where=news&query={0}&sort=0&pd=3&ds={1}&de={1}'.format(query, day)
+            yield scrapy.Request(url=url, callback=self.parse)
+            
+    # start_urls = []
+    
+    # start = (date.today()-relativedelta(years = 0, days =1)) #.strftime('%Y.%m.%d')
+    # end = (date.today()-relativedelta(days = 1)) #.strftime('%Y.%m.%d')
+    # query = '삼성전자'
+    # for date in pd.date_range(start = start, end = end):
+    #     date = date.strftime('%Y%m%d')
+    #     url = 'https://search.naver.com/search.naver?where=news&query={0}&sort=0&pd=3&ds={1}&de={1}'.format(query, date)
+    #     start_urls.append(url)
 
     def parse(self, response):
         for tag in response.css('div.news ul.type01 li'):
@@ -35,18 +50,38 @@ class NavernewsSpider(scrapy.Spider):
         url = response.url
         date = response.css('div.article_info span.t11::text').get().split(' ')[0]
         press = response.css('div.press_logo a img::attr(title)').get()
-        #senti = response.css('a.u_likeit_button *::text').getall()
-        #review = response.css('a#articleTitleCommentCount').getall()
         bodyList = response.css('div._article_body_contents *::text').getall()
         body = ''.join(bodyList).replace('  ','').replace('\t','').replace('\n','').replace('// flash 오류를 우회하기 위한 함수 추가function _flash_removeCallback() {}','')
-        
+        pick_binary = response.css('div.head_channel::attr(style)').get()
+        pick = 0 if 'none' in pick_binary else 1
+
+        _url = parse.parse_qs(parse.urlsplit(response.url).query)
+        oid = _url['oid'][0]
+        aid = _url['aid'][0]
+
+        react_url = 'https://news.like.naver.com/v1/search/contents?suppress_response_codes=true&q=NEWS%5Bne_{0}_{1}%5D%7CNEWS_SUMMARY%5B{0}_{1}%5D%7CNEWS_MAIN%5Bne_{0}_{1}%5D&isDuplication=false'.format(oid,aid)
+        react_resp=requests.get(react_url)
+        react_json = react_resp.json()['contents'][0]['reactions']
+        react = {}
+        for i in range(len(react_json)):
+            react[react_json[i]['reactionType']]=react_json[i]['count']
+        recommend_json = react_resp.json()['contents'][2]['reactions']
+        recommend = recommend_json[0]['count'] if recommend_json else 0
+
+        comment_url = 'https://news.naver.com/api/comment/listCount.json?resultType=MAP&ticket=news&lang=ko&country=KR&objectId=news{0},{1}'.format(oid,aid)
+        comment_resp = requests.get(comment_url)
+        comment_json = comment_resp.json()['result']
+        comment = list(comment_json.values())[0]['comment']
+
         item['title'] = title
         item['url'] = url
         item['date'] = date
         item['press'] = press
-        #item['senti'] = senti
-        #item['review'] = review
         item['body'] = body
+        item['pick'] = pick
+        item['react'] = react
+        item['comment'] = comment
+        item['recommend'] = recommend
         
         yield item
 
