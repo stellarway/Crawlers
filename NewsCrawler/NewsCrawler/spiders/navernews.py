@@ -10,48 +10,39 @@ import requests
 class NavernewsSpider(scrapy.Spider):
     name = 'navernews'
     def start_requests(self):
-        urls = []
         years = getattr(self, 'years', 0)
         months = getattr(self, 'months', 0)
         query = getattr(self, 'query', '')
         
-        start = (date.today()-relativedelta(years = years, months = months, days =1)) #.strftime('%Y.%m.%d')
-        end = (date.today()-relativedelta(days = 1)) #.strftime('%Y.%m.%d')
-
+        # making urls
+        start = (date.today()-relativedelta(years = years, months = months, days =1))
+        end = (date.today()-relativedelta(days = 1))
         for day in pd.date_range(start = start, end = end):
             day = day.strftime('%Y%m%d')
             url = 'https://search.naver.com/search.naver?where=news&query={0}&sort=0&pd=3&ds={1}&de={1}'.format(query, day)
             yield scrapy.Request(url=url, callback=self.parse)
             
-    # start_urls = []
-    
-    # start = (date.today()-relativedelta(years = 0, days =1)) #.strftime('%Y.%m.%d')
-    # end = (date.today()-relativedelta(days = 1)) #.strftime('%Y.%m.%d')
-    # query = '삼성전자'
-    # for date in pd.date_range(start = start, end = end):
-    #     date = date.strftime('%Y%m%d')
-    #     url = 'https://search.naver.com/search.naver?where=news&query={0}&sort=0&pd=3&ds={1}&de={1}'.format(query, date)
-    #     start_urls.append(url)
-
     def parse(self, response):
         for tag in response.css('div.news ul.type01 li'):
             if tag.css('dd.txt_inline a._sp_each_url').get():
                 href = tag.css('dd.txt_inline a::attr(href)').get()
                 yield response.follow(href, self.naver_news)
-
+        
         next_page = response.css('div.paging a.next::attr(href)').get()
         if next_page is not None:
             yield response.follow(next_page, callback = self.parse)
     
     def naver_news(self, response):
         item = NewscrawlerItem()
-        
+        # basic information
         title = response.css('div.article_info h3#articleTitle::text').get()
         url = response.url
         date = response.css('div.article_info span.t11::text').get().split(' ')[0]
         press = response.css('div.press_logo a img::attr(title)').get()
         bodyList = response.css('div._article_body_contents *::text').getall()
         body = ''.join(bodyList).replace('  ','').replace('\t','').replace('\n','').replace('// flash 오류를 우회하기 위한 함수 추가function _flash_removeCallback() {}','')
+        
+        # sentimental infomation
         pick_binary = response.css('div.head_channel::attr(style)').get()
         pick = 0 if 'none' in pick_binary else 1
 
@@ -73,6 +64,7 @@ class NavernewsSpider(scrapy.Spider):
         comment_json = comment_resp.json()['result']
         comment = list(comment_json.values())[0]['comment']
 
+        # wrapping
         item['title'] = title
         item['url'] = url
         item['date'] = date
