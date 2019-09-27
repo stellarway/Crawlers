@@ -6,7 +6,8 @@
 # https://docs.scrapy.org/en/latest/topics/spider-middleware.html
 
 from scrapy import signals
-
+from toripchanger import TorIpChanger
+ip_changer = TorIpChanger(reuse_threshold=100000)
 
 class NewscrawlerSpiderMiddleware(object):
     # Not all methods need to be defined. If a method is not defined,
@@ -71,7 +72,9 @@ class NewscrawlerDownloaderMiddleware(object):
     def process_request(self, request, spider):
         # Called for each request that goes through the downloader
         # middleware.
-
+        ip_changer.get_new_ip()
+        request.meta['proxy'] = 'http://127.0.0:8118'
+        spider.log('Proxy:%s'%request.meta['proxy'])
         # Must either:
         # - return None: continue processing this request
         # - or return a Response object

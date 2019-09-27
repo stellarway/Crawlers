@@ -11,13 +11,13 @@ import re
 class NavernewsSpider(scrapy.Spider):
     name = 'navernews'
     def start_requests(self):
-        years = getattr(self, 'years', 0)
-        months = getattr(self, 'months', 0)
+        # years = getattr(self, 'years', 0)
+        # months = getattr(self, 'months', 0)
         query = getattr(self, 'query', '')
         
         # making urls
-        start = (date.today()-relativedelta(years = years, months = months, days =1))
-        end = (date.today()-relativedelta(days = 1))
+        start = '20170101' # (date.today()-relativedelta(years = years, months = months, days =1))
+        end = '20190831' # (date.today()-relativedelta(days = 1))
         for day in pd.date_range(start = start, end = end):
             day = day.strftime('%Y%m%d')
             url = 'https://search.naver.com/search.naver?where=news&query={0}&sort=0&pd=3&ds={1}&de={1}'.format(query, day)
@@ -29,9 +29,9 @@ class NavernewsSpider(scrapy.Spider):
                 href = tag.css('dd.txt_inline a::attr(href)').get()
                 yield response.follow(href, self.naver_news)
         
-        # next_page = response.css('div.paging a.next::attr(href)').get()
-        # if next_page is not None:
-        #     yield response.follow(next_page, callback = self.parse)
+        next_page = response.css('div.paging a.next::attr(href)').get()
+        if next_page is not None:
+            yield response.follow(next_page, callback = self.parse)
     
     def naver_news(self, response):
         item = NewscrawlerItem()
