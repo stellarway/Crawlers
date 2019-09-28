@@ -11,12 +11,14 @@ import re
 class NavernewsSpider(scrapy.Spider):
     name = 'navernews_test'
 
-    start_urls=['https://news.naver.com/main/read.nhn?mode=LSD&mid=sec&sid1=101&oid=030&aid=0002701982',
+    start_urls=[
+    'https://news.naver.com/main/read.nhn?mode=LSD&mid=sec&sid1=101&oid=030&aid=0002701982',
     'https://news.naver.com/main/read.nhn?mode=LSD&mid=sec&sid1=101&oid=015&aid=0004051001',
     'https://news.naver.com/main/read.nhn?mode=LSD&mid=sec&sid1=101&oid=417&aid=0000367689',
     'https://news.naver.com/main/read.nhn?mode=LSD&mid=sec&sid1=101&oid=030&aid=0002786131',
     'https://news.naver.com/main/read.nhn?mode=LSD&mid=sec&sid1=105&oid=293&aid=0000021695',
-    'https://news.naver.com/main/read.nhn?mode=LSD&mid=sec&sid1=101&oid=277&aid=0004526338']
+    'https://news.naver.com/main/read.nhn?mode=LSD&mid=sec&sid1=101&oid=277&aid=0004526338'
+    ]
 
                
     def parse(self, response):
@@ -27,10 +29,14 @@ class NavernewsSpider(scrapy.Spider):
         date = response.css('div.article_info span.t11::text').get().split(' ')[0]
         press = response.css('div.press_logo a img::attr(title)').get()
         bodyList = response.css('div._article_body_contents *::text').getall()
+
         tempbody = ''.join(bodyList)
-        
-        pattern = r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+.*)|  |\t|\n|\xa0'
-        body = re.sub(pattern, '', tempbody).replace('// flash 오류를 우회하기 위한 함수 추가function _flash_removeCallback() {}','')
+        pattern1 = r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+.*)|  |\t|\n|\r|\xa0'
+        pattern2 = r'\(?이 기사는 언론사에서.*'
+        tempbody = re.sub(pattern1, '', tempbody)
+        tempbody = re.sub(pattern2, '', tempbody)
+        body = tempbody.replace('// flash 오류를 우회하기 위한 함수 추가function _flash_removeCallback() {}','')
+
         # sentimental infomation
         pick_binary = response.css('div.head_channel::attr(style)').get()
         pick = 0 if 'none' in pick_binary else 1
